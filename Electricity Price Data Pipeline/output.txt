@@ -1,3 +1,0 @@
-cd "/home/noahh/Personilga project"
-source .venv/bin/activate
-pip install streamlit
