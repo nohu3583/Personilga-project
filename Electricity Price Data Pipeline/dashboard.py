@@ -65,9 +65,10 @@ tommorow_df = load_tommorow(selected_area)
 st.caption("Prices are predictory, please double check tommorow that these are accurate")
 st.subheader("Tommorows Prices")
 
-st.line_chart(
-    tommorow_df.set_index("Time_beginning_period")["Price_SEK_per_kWh"]
-)
+if tommorow_df.empty:
+      st.info("Tomorrow's prices aren't published yet — check back after 2 PM.")
+else:
+      st.line_chart(tommorow_df.set_index("Time_beginning_period")["Price_SEK_per_kWh"])
 
 
 current_df = load_current()
@@ -85,7 +86,6 @@ for col, (_, row) in zip(cols, current_df.iterrows()):
     )
 
 @st.cache_data(ttl=3600)
-
 def load_extremes(area):
     highest = get_extreme_prices(area=area, order="DESC", limit=1)
     lowest = get_extreme_prices(area=area, order="ASC", limit=1)

@@ -9,6 +9,7 @@ VALID_COLUMNS = {
     "loaded_at",
 }
 
+
 def _validate_columns(columns):
     """Normalize and validate a column selection into a SQL-ready string."""
     if columns is None:
@@ -23,11 +24,13 @@ def _validate_columns(columns):
 
     return ", ".join(columns)
 
+
 def _validate_order_by(order_by):
     order_by = order_by or "Time_beginning_period"
     if order_by not in VALID_COLUMNS:
         raise ValueError("Not a valid column")
     return order_by
+
 
 def _validate_order(order):
     order = order or "ASC"
@@ -36,8 +39,17 @@ def _validate_order(order):
     return order
 
 
-def _build_where_clause(area=None, start_date=None, end_date=None, date_column="Time_beginning_period"):
-    """Build a WHERE clause + params list from common filter arguments."""
+def _build_where_clause(area=None, start_date=None, end_date=None, extra_conditions=None):
+    """Build a WHERE clause + params list from common filter arguments.
+
+    Time filters compare Time_beginning_period directly (no function wrapping
+    the column), so SQLite can still use the index on it. start_date/end_date
+    can be plain 'YYYY-MM-DD' strings or full ISO timestamps - string
+    comparison against the stored ISO timestamps works correctly either way.
+
+    extra_conditions: optional list of raw SQL condition strings (no params)
+    to AND in alongside the standard filters, e.g. a fixed date-range clause.
+    """
     conditions = []
     params = []
 
@@ -46,12 +58,15 @@ def _build_where_clause(area=None, start_date=None, end_date=None, date_column="
         params.append(area)
 
     if start_date is not None:
-        conditions.append(f"{date_column} >= ?")
+        conditions.append("Time_beginning_period >= ?")
         params.append(start_date)
 
     if end_date is not None:
-        conditions.append(f"{date_column} <= ?")
+        conditions.append("Time_beginning_period <= ?")
         params.append(end_date)
+
+    if extra_conditions:
+        conditions.extend(extra_conditions)
 
     where_sql = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     return where_sql, params
@@ -74,11 +89,12 @@ def get_prices(area=None, start_date=None, end_date=None, order=None, limit=None
 
 
 def get_current_prices():
-    """Gets the latest available price record."""
+    """Gets the latest available price record for today, per area."""
     sql = """
     SELECT Price_SEK_per_kWh, Time_beginning_period, Price_Area
     FROM electricity_prices
-    WHERE DATE(Time_beginning_period) = DATE('now')
+    WHERE Time_beginning_period >= DATE('now')
+      AND Time_beginning_period < DATE('now', '+1 day')
     ORDER BY Time_beginning_period DESC
     LIMIT 4
     """
@@ -90,11 +106,7 @@ def get_average_daily_prices(area=None, days=None):
     if days is not None:
         cutoff_date = (datetime.now().date() - timedelta(days=days)).isoformat()
 
-    where_sql, params = _build_where_clause(
-        area=area,
-        start_date=cutoff_date,
-        date_column="DATE(Time_beginning_period)",
-    )
+    where_sql, params = _build_where_clause(area=area, start_date=cutoff_date)
 
     sql = f"""
     SELECT
@@ -128,10 +140,11 @@ def get_last_date_recorded():
 def get_extreme_prices(area=None, order=None, limit=1):
     order = _validate_order(order)
 
-    where_sql, params = _build_where_clause(area=area, date_column="DATE(Time_beginning_period)")
-    # today-only filter, appended manually since it's not a user-supplied date
-    today_clause = "DATE(Time_beginning_period) = DATE('now')"
-    where_sql = f" WHERE {today_clause} AND {where_sql[7:]}" if where_sql else f" WHERE {today_clause}"
+    today_range = [
+        "Time_beginning_period >= DATE('now')",
+        "Time_beginning_period < DATE('now', '+1 day')",
+    ]
+    where_sql, params = _build_where_clause(area=area, extra_conditions=today_range)
 
     sql = f"""
     SELECT *
@@ -143,21 +156,25 @@ def get_extreme_prices(area=None, order=None, limit=1):
 
     return read_query(sql, params)
 
+
 def get_todays_average_price(area=None):
-    where_sql, params = _build_where_clause(area=area, date_column="DATE(Time_beginning_period)")
-    today_clause = "DATE(Time_beginning_period) = DATE('now')"
-    where_sql = f" WHERE {today_clause} AND {where_sql[7:]}" if where_sql else f" WHERE {today_clause}"
+    today_range = [
+        "Time_beginning_period >= DATE('now')",
+        "Time_beginning_period < DATE('now', '+1 day')",
+    ]
+    where_sql, params = _build_where_clause(area=area, extra_conditions=today_range)
 
     sql = f"SELECT AVG(Price_SEK_per_kWh) AS avg_price FROM electricity_prices{where_sql}"
     return read_query(sql, params)
+
 
 def get_tommorows_prices(area):
     sql = """
     SELECT Time_beginning_period, Price_SEK_per_kWh
     FROM electricity_prices
-    WHERE DATE(Time_beginning_period) = DATE('now', '+1 day')
-    AND Price_Area = ?
+    WHERE Time_beginning_period >= DATE('now', '+1 day')
+      AND Time_beginning_period < DATE('now', '+2 day')
+      AND Price_Area = ?
     ORDER BY Time_beginning_period
     """
     return read_query(sql, [area])
-
