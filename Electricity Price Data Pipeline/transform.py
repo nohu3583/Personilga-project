@@ -78,6 +78,7 @@ def get_current_prices():
     sql = """
     SELECT Price_SEK_per_kWh, Time_beginning_period, Price_Area
     FROM electricity_prices
+    WHERE DATE(Time_beginning_period) = DATE('now')
     ORDER BY Time_beginning_period DESC
     LIMIT 4
     """
@@ -149,3 +150,14 @@ def get_todays_average_price(area=None):
 
     sql = f"SELECT AVG(Price_SEK_per_kWh) AS avg_price FROM electricity_prices{where_sql}"
     return read_query(sql, params)
+
+def get_tommorows_prices(area):
+    sql = """
+    SELECT Time_beginning_period, Price_SEK_per_kWh
+    FROM electricity_prices
+    WHERE DATE(Time_beginning_period) = DATE('now', '+1 day')
+    AND Price_Area = ?
+    ORDER BY Time_beginning_period
+    """
+    return read_query(sql, [area])
+

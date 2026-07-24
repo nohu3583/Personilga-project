@@ -22,7 +22,7 @@ def load_prices(df):
     with get_connection() as conn:
         conn.executemany(
             """
-            INSERT OR IGNORE INTO electricity_prices (
+            INSERT OR REPLACE INTO electricity_prices (
                 Time_beginning_period,
                 Time_end_period,
                 Price_SEK_per_kWh,

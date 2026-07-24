@@ -3,7 +3,8 @@ from transform import (
     get_average_daily_prices,
     get_current_prices,
     get_extreme_prices,
-    get_todays_average_price
+    get_todays_average_price, 
+    get_tommorows_prices
 )
 
 
@@ -44,6 +45,10 @@ def load_history(area, limit):
 def load_current():
     return get_current_prices()
 
+@st.cache_data(ttl=3600)
+def load_tommorow(area):
+    return get_tommorows_prices(area)
+
 
 historical_df = load_history(
     selected_area,
@@ -56,8 +61,18 @@ st.line_chart(
     historical_df.set_index("day")["avg_price_sek"]
 )
 
+tommorow_df = load_tommorow(selected_area)
+st.caption("Prices are predictory, please double check tommorow that these are accurate")
+st.subheader("Tommorows Prices")
+
+st.line_chart(
+    tommorow_df.set_index("Time_beginning_period")["Price_SEK_per_kWh"]
+)
+
+
 current_df = load_current()
 current_df = current_df.sort_values("Price_Area")
+
 
 st.subheader("Current Price by Area (Price per kWh)")
 

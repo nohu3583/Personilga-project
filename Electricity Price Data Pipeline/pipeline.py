@@ -5,7 +5,7 @@ from transform import get_last_date_recorded
 from load import load_prices
 from validate import validate_prices
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from pathlib import Path
 
 
@@ -45,10 +45,26 @@ def import_missing_data():
     last_date = get_last_date_recorded()
     next_date = last_date + timedelta(days=1)
     today = date.today()
-
+    # Process any missing days up to today
     while next_date <= today:
         process_date(next_date)
         next_date += timedelta(days=1)
+
+    # If it's after 13:00 local time, attempt to reprocess today (in case prices updated)
+    # and try to import tomorrow's predictive prices if the API provides them.
+    now = datetime.now()
+    if now.hour >= 13:
+        try:
+            # Re-run today's processing to reconcile any changes
+            process_date(today)
+        except Exception as e:
+            print(f"Reprocessing today failed: {e}")
+
+        try:
+            # Attempt to import tomorrow's data — API may return predictive prices after 13:00
+            process_date(today + timedelta(days=1))
+        except Exception as e:
+            print(f"Attempting to import tomorrow failed (may not be available yet): {e}")
 
 
 
