@@ -70,4 +70,19 @@ The project follows a simple ETL flow:
 This keeps the data pipeline and the UI loosely coupled, while making it easy to
 run, inspect, and extend the project.
 
-## 
+## Tech Stack & Core Competencies
+
+**Languages & Libraries:** Python, pandas, SQLite3
+
+**Core competencies demonstrated:**
+- **ETL pipeline design** — extract/validate/load separation, idempotent
+  inserts (`UNIQUE` constraints + `INSERT OR IGNORE`/`REPLACE`), incremental
+  loading based on latest-timestamp tracking rather than full reprocessing
+- **Data quality & validation** — schema checks, range validation, duplicate
+  detection with a structured quality report
+- **SQL** — parameterized queries, index-aware query design (avoiding
+  function-wrapped WHERE clauses), aggregation, window-style date grouping
+- **Data visualization** — Streamlit dashboard with cached queries, live and
+  historical views
+- **Logging & observability** — structured logging across pipeline stages
+- **Testing** — unit tests with temp databases and mocked API calls
