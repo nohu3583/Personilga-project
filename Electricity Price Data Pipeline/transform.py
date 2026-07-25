@@ -1,5 +1,10 @@
+import logging
 from database import read_query
 from datetime import datetime, timedelta
+
+from logging_config import configure_logging
+
+logger = configure_logging()
 
 VALID_COLUMNS = {
     "id",
@@ -73,6 +78,7 @@ def _build_where_clause(area=None, start_date=None, end_date=None, extra_conditi
 
 
 def get_prices(area=None, start_date=None, end_date=None, order=None, limit=None, order_by=None, columns=None):
+    logger.debug("Querying prices for area=%s start_date=%s end_date=%s", area, start_date, end_date)
     column_sql = _validate_columns(columns)
     order_by = _validate_order_by(order_by)
     order = _validate_order(order)
@@ -90,18 +96,21 @@ def get_prices(area=None, start_date=None, end_date=None, order=None, limit=None
 
 def get_current_prices():
     """Gets the latest available price record for today, per area."""
+    logger.debug("Fetching current prices")
+    current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sql = """
-    SELECT Price_SEK_per_kWh, Time_beginning_period, Price_Area
+    SELECT Price_SEK_per_kWh, Time_beginning_period, Time_end_period, Price_Area
     FROM electricity_prices
-    WHERE Time_beginning_period >= DATE('now')
-      AND Time_beginning_period < DATE('now', '+1 day')
+    WHERE Time_beginning_period <= ?
+    AND Time_end_period > ?
     ORDER BY Time_beginning_period DESC
-    LIMIT 4
+    LIMIT 4;
     """
-    return read_query(sql)
+    return read_query(sql, [current_timestamp, current_timestamp])
 
 
 def get_average_daily_prices(area=None, days=None):
+    logger.debug("Fetching average daily prices for area=%s days=%s", area, days)
     cutoff_date = None
     if days is not None:
         cutoff_date = (datetime.now().date() - timedelta(days=days)).isoformat()
@@ -121,6 +130,7 @@ def get_average_daily_prices(area=None, days=None):
 
 
 def get_last_date_recorded():
+    logger.debug("Checking latest recorded date")
     sql = """
     SELECT Time_beginning_period
     FROM electricity_prices
@@ -131,10 +141,13 @@ def get_last_date_recorded():
     df = read_query(sql)
 
     if df.empty:
+        logger.info("No price records found in the database")
         return None
 
     last_timestamp = df.iloc[0]["Time_beginning_period"]
-    return datetime.fromisoformat(last_timestamp).date()
+    last_date = datetime.fromisoformat(last_timestamp).date()
+    logger.info("Latest recorded date is %s", last_date)
+    return last_date
 
 
 def get_extreme_prices(area=None, order=None, limit=1):

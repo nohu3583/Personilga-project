@@ -8,12 +8,15 @@ from validate import validate_prices
 from datetime import date, timedelta, datetime
 from pathlib import Path
 
+from logging_config import configure_logging
+
+logger = configure_logging()
 
 DB_PATH = Path(__file__).resolve().parent / "electricity_prices.db"
 
 def process_date(processing_date):
     try:
-        print(f"Processing {processing_date}")
+        logger.info("Processing %s", processing_date)
         # Extract
         df = fetch_prices_for_date(processing_date)
         # Validate
@@ -21,11 +24,11 @@ def process_date(processing_date):
 
         # Load
         load_prices(valid_df)
-        print(f"Finished {processing_date}")
+        logger.info("Finished %s", processing_date)
         return True
 
     except Exception as e:
-        print(f"Failed processing {processing_date}: {e}")
+        logger.exception("Failed processing %s", processing_date)
         return False
 
 def import_historic_data():
@@ -34,6 +37,7 @@ def import_historic_data():
     end_date = date.today()
     current = start_date
 
+    logger.info("Importing historical data from %s to %s", start_date, end_date)
     while current <= end_date:
         process_date(current)
         current += timedelta(days=1)
@@ -43,6 +47,7 @@ def import_historic_data():
 def import_missing_data():
 
     last_date = get_last_date_recorded()
+    logger.info("Latest recorded date before missing-data import: %s", last_date)
     next_date = last_date + timedelta(days=1)
     today = date.today()
     # Process any missing days up to today
@@ -58,13 +63,13 @@ def import_missing_data():
             # Re-run today's processing to reconcile any changes
             process_date(today)
         except Exception as e:
-            print(f"Reprocessing today failed: {e}")
+            logger.exception("Reprocessing today failed")
 
         try:
             # Attempt to import tomorrow's data — API may return predictive prices after 13:00
             process_date(today + timedelta(days=1))
         except Exception as e:
-            print(f"Attempting to import tomorrow failed (may not be available yet): {e}")
+            logger.exception("Attempting to import tomorrow failed (may not be available yet)")
 
 
 
@@ -73,11 +78,11 @@ def pipeline_start():
     initialize_database(DB_PATH)
 
     if is_database_empty():
-        print("Database empty. Importing historical data.")
+        logger.info("Database empty. Importing historical data.")
         import_historic_data()
 
     else:
-        print("Database exists. Checking for new data.")
+        logger.info("Database exists. Checking for new data.")
         import_missing_data()
 
 if __name__ == "__main__":

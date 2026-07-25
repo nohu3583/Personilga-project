@@ -1,5 +1,9 @@
 import pandas as pd
 
+from logging_config import configure_logging
+
+logger = configure_logging()
+
 
 def validate_prices(df: pd.DataFrame):
 
@@ -16,9 +20,12 @@ def validate_prices(df: pd.DataFrame):
         "Time_end_period"
     ]
 
+    logger.info("Validating %d rows", len(df))
+
     missing = set(required_columns) - set(df.columns)
 
     if missing:
+        logger.error("Validation failed due to missing columns: %s", missing)
         raise ValueError(f"Missing required columns: {missing}")
 
     # -----------------------
@@ -64,5 +71,12 @@ def validate_prices(df: pd.DataFrame):
         "invalid_price": (~valid_price).sum(),
         "duplicate_time_area": duplicates_mask.sum(),
     }
+
+    logger.info(
+        "Validation summary: total=%d valid=%d invalid=%d",
+        report["rows_total"],
+        report["rows_valid"],
+        report["rows_invalid"],
+    )
 
     return valid_df, invalid_df, report
